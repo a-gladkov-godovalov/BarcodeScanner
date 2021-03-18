@@ -7,6 +7,8 @@ from pyzbar import pyzbar
 import imutils
 import cv2
 import winsound
+import pathlib
+from pathlib import Path
 
 
 def webcam(device_id):
@@ -23,7 +25,12 @@ def webcam(device_id):
 
     vs = VideoStream(src=device_id).start()
 
-    found = set()
+    # Словарь для распознаных штрих-кодов
+    found = dict()
+
+    # Счетчик распознанных штрих-кодов
+    counter = 0
+
     while True:
         frame_data = vs.read()
         frame_data = imutils.resize(frame_data, width=600)
@@ -39,20 +46,30 @@ def webcam(device_id):
             barcode_data = barcode_data.rstrip('\n')
 
             barcode_type = barcode.type
-            textData = "{} ({})".format(barcode_data, barcode_type)
-            cv2.putText(frame_data, textData, (x, y - 10),
+            text_data = "{} ({})".format(barcode_data, barcode_type)
+            cv2.putText(frame_data, text_data, (x, y - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-            if barcode_data not in found:
-                image = barcode_data + '.png'
+            if barcode_data not in found.values():
+                # Прибавляем счетчик
+                counter += 1
 
+                # Задаем каталог и имя файла для сохранения изображения
+                image = barcode_data + ".png"
+                print(image)
                 # Сохраняем изображение
                 cv2.imwrite(image, frame_data)
 
-                # Добавляем штрих-код в множество
-                found.add(barcode_data)
+                # Добавляем штрих-код в словарь
+                found[counter] = barcode_data
 
                 # Подаем звуковой сигнал
                 winsound.Beep(beep_frequency, beep_duration)
+
+                # Обнуляем счетчик штрих-кодов в словаре для того, чтобы не хранить старые штрих-коды
+                if counter == 10:
+                    counter = 0
+
+                print(found)
         cv2.imshow("Barcode Scanner", frame_data)
         key = cv2.waitKey(1) & 0xFF
         if key == ord("e"):
@@ -66,8 +83,7 @@ def main():
     """
     Основаня функция входа в приложение
     """
-    webcam(1)
     webcam(0)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
