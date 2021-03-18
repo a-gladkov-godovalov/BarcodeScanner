@@ -7,14 +7,22 @@ from pyzbar import pyzbar
 import imutils
 import cv2
 import winsound
-import pathlib
-from pathlib import Path
+import os
 
 
 def webcam(device_id):
     """
-    Инициализация веб-камеры
+    Работа с веб-камерой
     """
+    # Создаем каталог для сохранения изображений
+    img_path = "images/"
+    try:
+        os.mkdir(img_path)
+    except OSError:
+        print("Не удалось создать каталог для изображений %s " % img_path)
+    else:
+        print("Каталог для изображений успешно создан %s " % img_path)
+
     # Задаем частоту звукового сигнала в Гц
     beep_frequency = 2500
 
@@ -54,10 +62,10 @@ def webcam(device_id):
                 counter += 1
 
                 # Задаем каталог и имя файла для сохранения изображения
-                image = barcode_data + ".png"
-                print(image)
+                img_name = barcode_data + ".png"
+                print(img_path + img_name)
                 # Сохраняем изображение
-                cv2.imwrite(image, frame_data)
+                cv2.imwrite(img_path + img_name, frame_data)
 
                 # Добавляем штрих-код в словарь
                 found[counter] = barcode_data
