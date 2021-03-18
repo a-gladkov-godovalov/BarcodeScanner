@@ -4,58 +4,60 @@
 
 from imutils.video import VideoStream
 from pyzbar import pyzbar
-import argparse
-import datetime
-from datetime import datetime
 import imutils
-import time
 import cv2
 import winsound
 
-def webcam():
+
+def webcam(device_id):
     """
     Инициализация веб-камеры
     """
-    frequency = 2500  # Set Frequency To 2500 Hertz
-    duration = 800  # Set Duration To 1000 ms == 1 second
+    # Задаем частоту звукового сигнала в Гц
+    beep_frequency = 2500
 
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-o", "--output", type=str, default="barcodesData.csv",
-                    help="path to output CSV file ")
-    args = vars(ap.parse_args())
+    # Задачем продолжительность звукового сигнала в мс
+    beep_duration = 800
 
     print("Starting webcam")
 
-    vs = VideoStream(src=0).start()
-    time.sleep(2.0)
-    csvWrite = open("barcodesData.csv", "w")
+    vs = VideoStream(src=device_id).start()
+
     found = set()
     while True:
-        frameData = vs.read()
-        frameData = imutils.resize(frameData, width=600)
-        barcodes = pyzbar.decode(frameData)
+        frame_data = vs.read()
+        frame_data = imutils.resize(frame_data, width=600)
+        barcodes = pyzbar.decode(frame_data)
         for barcode in barcodes:
             (x, y, width, height) = barcode.rect
-            cv2.rectangle(frameData, (x, y), (x + width, y + height), (0, 0, 255), 2)
-            barcodeData = barcode.data.decode("utf-8")
-            barcodeType = barcode.type
-            textData = "{} ({})".format(barcodeData, barcodeType)
-            cv2.putText(frameData, textData, (x, y - 10),
+            cv2.rectangle(frame_data, (x, y), (x + width, y + height), (0, 0, 255), 2)
+
+            # Сохраняем распознанный штри-код в строку
+            barcode_data = barcode.data.decode("utf-8")
+
+            # Обрезаем символ переноса каретки из штрих-кода
+            barcode_data = barcode_data.rstrip('\n')
+
+            barcode_type = barcode.type
+            textData = "{} ({})".format(barcode_data, barcode_type)
+            cv2.putText(frame_data, textData, (x, y - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-            if barcodeData not in found:
-                csvWrite.write("{},{}\n".format(datetime.today().strftime('%Y-%m-%d'),
-                                                barcodeData))
-                csvWrite.flush()
-                found.add(barcodeData)
-                winsound.Beep(frequency, duration)
-        cv2.imshow("Barcode Scanner", frameData)
+            if barcode_data not in found:
+                image = barcode_data + '.png'
+
+                # Сохраняем изображение
+                cv2.imwrite(image, frame_data)
+
+                # Добавляем штрих-код в множество
+                found.add(barcode_data)
+
+                # Подаем звуковой сигнал
+                winsound.Beep(beep_frequency, beep_duration)
+        cv2.imshow("Barcode Scanner", frame_data)
         key = cv2.waitKey(1) & 0xFF
         if key == ord("e"):
             break
 
-    # close the output CSV file do a bit of cleanup
-    print("\nWait while we calculate cost...")
-    csvWrite.close()
     cv2.destroyAllWindows()
     vs.stop()
 
@@ -64,9 +66,8 @@ def main():
     """
     Основаня функция входа в приложение
     """
-    webcam()
-
+    webcam(1)
+    webcam(0)
 
 if __name__ == '__main__':
     main()
-
