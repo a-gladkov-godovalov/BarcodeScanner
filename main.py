@@ -29,7 +29,7 @@ def webcam(device_id):
     # Задачем продолжительность звукового сигнала в мс
     beep_duration = 800
 
-    print("Starting webcam")
+    print("Запуск веб-камеры")
 
     vs = VideoStream(src=device_id).start()
 
@@ -41,7 +41,7 @@ def webcam(device_id):
 
     while True:
         frame_data = vs.read()
-        frame_data = imutils.resize(frame_data, width=600)
+        frame_data = imutils.resize(frame_data, width=1000)
         barcodes = pyzbar.decode(frame_data)
         for barcode in barcodes:
             (x, y, width, height) = barcode.rect
@@ -59,13 +59,19 @@ def webcam(device_id):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
             if barcode_data not in found.values():
                 # Прибавляем счетчик
+                print(f"Отсканирован штри-код {barcode_data}")
                 counter += 1
 
                 # Задаем каталог и имя файла для сохранения изображения
                 img_name = barcode_data + ".png"
-                print(img_path + img_name)
+
                 # Сохраняем изображение
-                cv2.imwrite(img_path + img_name, frame_data)
+                try:
+                    cv2.imwrite(img_path + img_name, frame_data)
+                except Exception as ex:
+                    print(f"Не удалось сохранить изображение: {ex}")
+                else:
+                    print(f"Изображение {img_name} успешно сохранено")
 
                 # Добавляем штрих-код в словарь
                 found[counter] = barcode_data
@@ -77,10 +83,9 @@ def webcam(device_id):
                 if counter == 10:
                     counter = 0
 
-                print(found)
         cv2.imshow("Barcode Scanner", frame_data)
         key = cv2.waitKey(1) & 0xFF
-        if key == ord("e"):
+        if key == ord("q"):
             break
 
     cv2.destroyAllWindows()
