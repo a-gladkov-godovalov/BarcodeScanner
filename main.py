@@ -4,99 +4,167 @@
 
 from imutils.video import VideoStream
 from pyzbar import pyzbar
+from pyzbar.pyzbar import ZBarSymbol
 import imutils
 import cv2
 import winsound
 import os
 
 
-def webcam(device_id):
+class Stream(object):
     """
-    Работа с веб-камерой
+    Класс Потоковое видео
     """
-    # Создаем каталог для сохранения изображений
-    img_path = "images/"
-    try:
-        os.mkdir(img_path)
-    except OSError:
-        print("Не удалось создать каталог для изображений %s " % img_path)
-    else:
-        print("Каталог для изображений успешно создан %s " % img_path)
-
-    # Задаем частоту звукового сигнала в Гц
-    beep_frequency = 2500
-
-    # Задачем продолжительность звукового сигнала в мс
-    beep_duration = 800
-
-    print("Запуск веб-камеры")
-
-    vs = VideoStream(src=device_id).start()
 
     # Словарь для распознаных штрих-кодов
-    found = dict()
+    found_barcodes = dict()
 
-    # Счетчик распознанных штрих-кодов
-    counter = 0
+    def init_stream(self):
+        """
+        Функция инициализации потока видео
+        """
 
-    while True:
-        frame_data = vs.read()
-        frame_data = imutils.resize(frame_data, width=1000)
-        barcodes = pyzbar.decode(frame_data)
+        if self.device_type == IP:
+            # Запускаем видепоток с IP-камеры
+            stream = cv2.VideoCapture(f'rtsp://{self.user_login}:{self.user_pass}@{self.device_ip}:554/ch1-s1?tcp')
+        else:
+            # Запускаем видепоток с веб-камеры
+            stream = VideoStream(src=self.device_id).start()
+
+        return stream
+
+    def run_stream(self):
+        """
+        Функция работы с потоком видео
+        """
+        # Запускаем видепоток с веб-камеры
+        stream = self.init_stream()
+
+        while True:
+            if self.device_type == IP:
+                ret, frame = stream.read()
+            else:
+                frame = stream.read()
+
+            frame = self.read_barcode(frame)
+            cv2.imshow('Barcode scanner', frame)
+            if cv2.waitKey(1) & 0xFF == 27:
+                break
+
+        stream.release()
+        cv2.destroyAllWindows()
+
+    def read_barcode(self, frame):
+        """
+        Функция распознавания штрих-кодов из изображения
+        При успешном распознании штрих-кода на изображение в область накладывается рамка
+        """
+
+        barcodes = pyzbar.decode(frame, symbols=[ZBarSymbol.QRCODE, ZBarSymbol.CODE128])
         for barcode in barcodes:
-            (x, y, width, height) = barcode.rect
-            cv2.rectangle(frame_data, (x, y), (x + width, y + height), (0, 0, 255), 2)
+            # Сохраняем координаты штрих-кода
+            x, y, w, h = barcode.rect
 
             # Сохраняем распознанный штри-код в строку
-            barcode_data = barcode.data.decode("utf-8")
+            barcode_text = barcode.data.decode('utf-8')
 
             # Обрезаем символ переноса каретки из штрих-кода
-            barcode_data = barcode_data.rstrip('\n')
+            barcode_text = barcode_text.rstrip('\n')
 
-            barcode_type = barcode.type
-            text_data = "{} ({})".format(barcode_data, barcode_type)
-            cv2.putText(frame_data, text_data, (x, y - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-            if barcode_data not in found.values():
-                # Прибавляем счетчик
-                print(f"Отсканирован штри-код {barcode_data}")
-                counter += 1
+            if barcode_text not in self.found_barcodes.values():
+                print(f"Отсканирован штри-код {barcode_text}")
 
-                # Задаем каталог и имя файла для сохранения изображения
-                img_name = barcode_data + ".png"
+                # Определяем количество штрих-кодов в словаре
+                counter = len(self.found_barcodes)
 
-                # Сохраняем изображение
-                try:
-                    cv2.imwrite(img_path + img_name, frame_data)
-                except Exception as ex:
-                    print(f"Не удалось сохранить изображение: {ex}")
-                else:
-                    print(f"Изображение {img_name} успешно сохранено")
-
-                # Добавляем штрих-код в словарь
-                found[counter] = barcode_data
-
-                # Подаем звуковой сигнал
-                winsound.Beep(beep_frequency, beep_duration)
-
-                # Обнуляем счетчик штрих-кодов в словаре для того, чтобы не хранить старые штрих-коды
+                # Обнуляем счетчик штрих-кодов в словаре, чтобы не хранить старые штрих-коды
                 if counter == 10:
                     counter = 0
 
-        cv2.imshow("Barcode Scanner", frame_data)
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("q"):
-            break
+                # Добавляем штрих-код в словарь
+                self.found_barcodes[counter] = barcode_text
 
-    cv2.destroyAllWindows()
-    vs.stop()
+                # Сохраняем изображение на диск
+                self.save_img(frame, barcode_text + ".png")
+
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        return frame
+
+    @staticmethod
+    def save_img(frame, img_name):
+        """
+        Функция сохранения изображения на диск
+        """
+
+        # Получаем каталог для сохранения изображений
+        img_path = Stream.get_img_path()
+
+        # Сохраняем изображение
+        try:
+            cv2.imwrite(img_path + img_name, frame)
+        except Exception as ex:
+            print(f"Не удалось сохранить изображение: {ex}")
+        else:
+            print(f"Изображение {img_name} успешно сохранено")
+
+    @staticmethod
+    def get_img_path():
+        """
+        Функция получения каталога для сохранения изображений из потокового видео
+        """
+
+        # Создаем каталог для сохранения изображений
+        path = "images/"
+        try:
+            os.mkdir(path)
+        except OSError:
+            print("Не удалось создать каталог для изображений %s " % path)
+        else:
+            print("Каталог для изображений успешно создан %s " % path)
+
+        return path
 
 
-def main():
+class IPCamera(Stream):
     """
-    Основаня функция входа в приложение
+    Класс IP-камера, наследник класса Потоковое видео
     """
-    webcam(0)
+
+    def __init__(self, device_type, device_ip, user_login, user_pass):
+        """
+        Инициализация класса
+        """
+
+        self.device_type = device_type
+        self.device_ip = device_ip
+        self.user_login = user_login
+        self.user_pass = user_pass
+
+
+class WebCamera(Stream):
+    """
+    Класс Веб-камера, наследник класса Потоковое видео
+    """
+
+    def __init__(self, device_type, device_id,):
+        """
+        Инициализация класса
+        """
+
+        self.device_type = device_type
+        self.device_id = device_id
+
 
 if __name__ == "__main__":
-    main()
+    """
+    Основаня точка входа в приложение
+    """
+
+    WEB = "Webcamera"
+    IP = "IPcamera"
+
+    ip_camera = IPCamera(device_type=IP, device_ip="172.94.3.156", user_login="admin", user_pass="Apteka514")
+    ip_camera.run_stream()
+
+    web_camera = WebCamera(device_type=WEB, device_id=0)
+    web_camera.run_stream()
