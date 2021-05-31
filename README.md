@@ -1,1 +1,1 @@
-Barcode scanner with webcam
+# Barcode scanner with webcamera/IP-camera
